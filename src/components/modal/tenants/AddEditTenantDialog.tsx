@@ -296,6 +296,9 @@ export default class AddEditTenantDialog extends React.Component<Props, State> {
     const data = [{}, ...allEndpoints];
     return (
       <SelectDropdown
+        // SelectDropdown keeps its own selection; remount when the selection in state changes
+        // (e.g. deleting the selected endpoint) so the button never shows a stale endpoint
+        key={newTenantEndpointCloud?.name}
         ref={(ref) => this.endpointInput = ref}
         data={data}
         defaultButtonText={newTenantEndpointCloud?.name}
@@ -335,7 +338,7 @@ export default class AddEditTenantDialog extends React.Component<Props, State> {
     let { userEndpoints, newTenantEndpointCloud } = this.state;
     userEndpoints = userEndpoints.filter((endpoint) => endpoint.name !== endpointName);
     // Handle deletion of the currently selected endpoint
-    if (endpointName === newTenantEndpointCloud.name) {
+    if (endpointName === newTenantEndpointCloud?.name) {
       const allEndpoints = [...userEndpoints, ...this.staticEndpoints];
       allEndpoints.sort((endpoint1, endpoint2) => endpoint1.name.toUpperCase() < endpoint2.name.toUpperCase() ? -1 : 1 );
       newTenantEndpointCloud = allEndpoints[0];

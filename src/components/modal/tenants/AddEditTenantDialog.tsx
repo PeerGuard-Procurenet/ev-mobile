@@ -56,6 +56,8 @@ export default class AddEditTenantDialog extends React.Component<Props, State> {
   private nameInput: TextInput;
   private endpointInput: SelectDropdown;
   private endpointURLInput: TextInput;
+  // Input hands a ref to its InputComponent, so it must be a stable ref-capable type, not an inline arrow
+  private EndpointDropdown = React.forwardRef((_props: unknown, _ref: React.Ref<unknown>) => this.renderEndpointDropdown());
 
   private formCreateTenantValidationDef = {
     newTenantSubDomain: {
@@ -178,19 +180,14 @@ export default class AddEditTenantDialog extends React.Component<Props, State> {
   private renderControls(style: any) {
     const {
       loadingAddNewEndpoint,
-      newTenantEndpointCloud,
       newTenantName,
       newTenantSubDomain,
       showEndpointCreationForm,
       newEndpointName,
-      newEndpointURL,
-      userEndpoints
+      newEndpointURL
     } = this.state;
     const commonColor = Utils.getCurrentCommonColor();
     const modalCommonStyles = computeModalCommonStyle();
-    const allEndpoints = [...this.staticEndpoints, ...userEndpoints];
-    allEndpoints.sort((endpoint1, endpoint2) => endpoint1?.name?.toUpperCase() < endpoint2?.name?.toUpperCase() ? -1 : 1 );
-    const data = [{}, ...allEndpoints];
     return (
       <View style={style.modalControlsContainer}>
         <Input
@@ -237,41 +234,7 @@ export default class AddEditTenantDialog extends React.Component<Props, State> {
           containerStyle={style.inputContainer}
           inputStyle={style.inputText}
           inputContainerStyle={style.inputInnerContainerNoBorder}
-          InputComponent={() =>
-            <SelectDropdown
-              ref={(ref) => this.endpointInput = ref}
-              data={data}
-              defaultButtonText={newTenantEndpointCloud?.name}
-              buttonTextAfterSelection={(selectedItem: EndpointCloud) => selectedItem.name}
-              renderCustomizedRowChild={(item: EndpointCloud, index: number) => {
-                if ( index === 0 ) {
-                  return (
-                    <TouchableOpacity onPress={() => this.setState({showEndpointCreationForm: true})} style={style.selectDropdownRowContainer}>
-                      <Icon size={scale(25)} as={MaterialIcons} name={'add'} style={[style.newEntryText, style.newEntryIcon]}/>
-                      <Text style={[style.selectDropdownRowText, style.newEntryText]}>{I18n.t('general.newEntry')}</Text>
-                    </TouchableOpacity>
-                  );
-                }
-                return (
-                  <View style={style.selectDropdownRowContainer}>
-                    <Text numberOfLines={1} ellipsizeMode={'tail'} style={style.selectDropdownRowText}>{item.name}</Text>
-                    {userEndpoints.map(userEndpoint => userEndpoint.name).includes(item.name) && (
-                      <TouchableOpacity style={style.selectDropdownRowIconContainer} onPress={() => this.deleteEndpoint(item.name)}>
-                        <Icon size={scale(30)} style={style.selectDropdownRowIcon} name={'close'} as={EvilIcons}/>
-                      </TouchableOpacity>
-                    )}
-                  </View>
-                );
-              }}
-              buttonStyle={style.selectField}
-              buttonTextStyle={style.selectFieldText}
-              dropdownStyle={style.selectDropdown}
-              rowStyle={style.selectDropdownRow}
-              rowTextStyle={style.selectDropdownRowText}
-              renderDropdownIcon={() => <Icon size={scale(26)} style={style.selectDropdownIcon} as={MaterialIcons} name={'arrow-drop-down'} />}
-              onSelect={(endpointCloud: EndpointCloud) => this.setState({ newTenantEndpointCloud: endpointCloud })}
-            />
-          }
+          InputComponent={this.EndpointDropdown as unknown as typeof React.Component}
         />
         {showEndpointCreationForm && (
           <View style={style.endpointCreationFormContainer}>
@@ -325,11 +288,57 @@ export default class AddEditTenantDialog extends React.Component<Props, State> {
     );
   }
 
+  private renderEndpointDropdown() {
+    const style = computeStyleSheet();
+    const { newTenantEndpointCloud, userEndpoints } = this.state;
+    const allEndpoints = [...this.staticEndpoints, ...userEndpoints];
+    allEndpoints.sort((endpoint1, endpoint2) => endpoint1?.name?.toUpperCase() < endpoint2?.name?.toUpperCase() ? -1 : 1 );
+    const data = [{}, ...allEndpoints];
+    return (
+      <SelectDropdown
+        // SelectDropdown keeps its own selection; remount when the selection in state changes
+        // (e.g. deleting the selected endpoint) so the button never shows a stale endpoint
+        key={newTenantEndpointCloud?.name}
+        ref={(ref) => this.endpointInput = ref}
+        data={data}
+        defaultButtonText={newTenantEndpointCloud?.name}
+        buttonTextAfterSelection={(selectedItem: EndpointCloud) => selectedItem.name}
+        renderCustomizedRowChild={(item: EndpointCloud, index: number) => {
+          if ( index === 0 ) {
+            return (
+              <TouchableOpacity onPress={() => this.setState({showEndpointCreationForm: true})} style={style.selectDropdownRowContainer}>
+                <Icon size={scale(25)} as={MaterialIcons} name={'add'} style={[style.newEntryText, style.newEntryIcon]}/>
+                <Text style={[style.selectDropdownRowText, style.newEntryText]}>{I18n.t('general.newEntry')}</Text>
+              </TouchableOpacity>
+            );
+          }
+          return (
+            <View style={style.selectDropdownRowContainer}>
+              <Text numberOfLines={1} ellipsizeMode={'tail'} style={style.selectDropdownRowText}>{item.name}</Text>
+              {userEndpoints.map(userEndpoint => userEndpoint.name).includes(item.name) && (
+                <TouchableOpacity style={style.selectDropdownRowIconContainer} onPress={() => this.deleteEndpoint(item.name)}>
+                  <Icon size={scale(30)} style={style.selectDropdownRowIcon} name={'close'} as={EvilIcons}/>
+                </TouchableOpacity>
+              )}
+            </View>
+          );
+        }}
+        buttonStyle={style.selectField}
+        buttonTextStyle={style.selectFieldText}
+        dropdownStyle={style.selectDropdown}
+        rowStyle={style.selectDropdownRow}
+        rowTextStyle={style.selectDropdownRowText}
+        renderDropdownIcon={() => <Icon size={scale(26)} style={style.selectDropdownIcon} as={MaterialIcons} name={'arrow-drop-down'} />}
+        onSelect={(endpointCloud: EndpointCloud) => this.setState({ newTenantEndpointCloud: endpointCloud })}
+      />
+    );
+  }
+
   private async deleteEndpoint(endpointName: string): Promise<void> {
     let { userEndpoints, newTenantEndpointCloud } = this.state;
     userEndpoints = userEndpoints.filter((endpoint) => endpoint.name !== endpointName);
     // Handle deletion of the currently selected endpoint
-    if (endpointName === newTenantEndpointCloud.name) {
+    if (endpointName === newTenantEndpointCloud?.name) {
       const allEndpoints = [...userEndpoints, ...this.staticEndpoints];
       allEndpoints.sort((endpoint1, endpoint2) => endpoint1.name.toUpperCase() < endpoint2.name.toUpperCase() ? -1 : 1 );
       newTenantEndpointCloud = allEndpoints[0];
